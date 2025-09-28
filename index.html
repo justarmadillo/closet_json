@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Occlusion Creator for Anki</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --surface-dark: #1e1e1e;
+            --background-dark: #121212;
+            --text-light: #e0e0e0;
+            --border-color: #444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background-dark);
+            color: var(--text-light);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container { max-width: 1000px; margin: 0 auto; }
+        
+        .header {
+            background: var(--surface-dark);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .btn:hover { filter: brightness(1.1); }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        .btn.success { background: #28a745; }
+        .btn.secondary { background: #6c757d; }
+        
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            background: var(--surface-dark);
+            transition: all 0.2s ease;
+        }
+        .upload-area:hover { border-color: var(--primary-color); }
+        .upload-area.dragover { border-color: var(--primary-color); background: rgba(74, 144, 226, 0.1); }
+        
+        .image-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            background: var(--surface-dark);
+            border-radius: 8px;
+            overflow: hidden;
+            user-select: none;
+            border: 2px solid var(--primary-color);
+        }
+        .image-wrapper-center { text-align: center; margin: 20px 0; }
+        .curriculum-image { max-width: 100%; height: auto; display: block; }
+        
+        .occlusion-box {
+            position: absolute;
+            background: rgba(74, 144, 226, 0.7);
+            border: 2px solid #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+        .occlusion-box:hover { background: rgba(74, 144, 226, 0.9); }
+        
+        .output-area {
+            background: var(--surface-dark);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .code-output {
+            background: #000;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+            color: #0f0;
+            position: relative;
+        }
+        
+        .copy-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+        .copy-button:hover { filter: brightness(1.1); }
+        .copy-button.copied { background: #28a745; }
+        
+        .fab-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999;
+        }
+        
+        .fab {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .fab:hover { transform: scale(1.05); }
+        .fab.active { background-color: var(--primary-color); }
+        
+        #fileInput { display: none; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Anki Occlusion Creator</h1>
+            <p>Create occlusions and copy the code for your Anki cards</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">Upload Image</button>
+            <button class="btn secondary" onclick="clearOcclusions()">Clear All</button>
+            <button class="btn success" onclick="copyToClipboard()" id="copyBtn" disabled>Copy Code</button>
+        </div>
+
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()" 
+             ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+            <div id="uploadText">
+                <h3>Upload Your Image</h3>
+                <p>Click here or drag and drop an image</p>
+            </div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" onchange="handleImageUpload(event)">
+
+        <div class="image-wrapper-center" id="imageContainerWrapper"></div>
+
+        <div class="output-area">
+            <h3>Occlusion Data (Copy this to your context_code field):</h3>
+            <div class="code-output" id="codeOutput">No occlusions created yet...</div>
+            <button class="copy-button hidden" id="inlineCopyBtn" onclick="copyCodeInline()">Copy</button>
+        </div>
+    </div>
+
+    <div class="fab-container hidden" id="fabContainer">
+        <button class="fab" id="drawModeToggle" onclick="toggleDrawMode()" title="Toggle Draw Mode">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325"/>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        let isDrawing = false;
+        let isDrawModeActive = false;
+        let startPos = { x: 0, y: 0 };
+        let occlusions = [];
+        let currentImageElement = null;
+
+        function isTouchDevice() {
+            return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        }
+
+        function toggleDrawMode() {
+            isDrawModeActive = !isDrawModeActive;
+            const button = document.getElementById('drawModeToggle');
+            if (button) {
+                button.classList.toggle('active', isDrawModeActive);
+            }
+            const imageWrapper = document.getElementById('imageWrapper');
+            if (imageWrapper) {
+                imageWrapper.classList.toggle('draw-active', isDrawModeActive);
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            }
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            }
+        }
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => displayImage(e.target.result);
+            reader.readAsDataURL(file);
+        }
+
+        function displayImage(src) {
+            const container = document.getElementById('imageContainerWrapper');
+            container.innerHTML = `<div class="image-container" id="imageWrapper"><img src="${src}" alt="Curriculum" class="curriculum-image" id="curriculumImg"></div>`;
+            
+            currentImageElement = document.getElementById('curriculumImg');
+            const imageWrapper = document.getElementById('imageWrapper');
+            
+            setupDrawingListeners(imageWrapper);
+            document.getElementById('uploadText').innerHTML = '<p>✓ Image loaded. Draw occlusions by clicking and dragging.</p>';
+            document.getElementById('fabContainer').classList.remove('hidden');
+            
+            // Auto-enable draw mode
+            isDrawModeActive = true;
+            document.getElementById('drawModeToggle').classList.add('active');
+            imageWrapper.classList.add('draw-active');
+            
+            clearOcclusions();
+        }
+
+        function getEventPosition(event, target) {
+            const rect = target.getBoundingClientRect();
+            const touch = event.touches?.[0] || event;
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        }
+
+        function setupDrawingListeners(wrapper) {
+            wrapper.addEventListener('mousedown', startDrawing);
+            wrapper.addEventListener('mousemove', drawOcclusion);
+            wrapper.addEventListener('mouseup', endDrawing);
+            wrapper.addEventListener('mouseleave', endDrawing);
+            wrapper.addEventListener('touchstart', startDrawing, { passive: false });
+            wrapper.addEventListener('touchmove', drawOcclusion, { passive: false });
+            wrapper.addEventListener('touchend', endDrawing);
+        }
+        
+        function startDrawing(e) {
+            if (!isDrawModeActive) return;
+            e.preventDefault();
+            isDrawing = true;
+            startPos = getEventPosition(e, e.currentTarget);
+        }
+        
+        function drawOcclusion(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            
+            const currentPos = getEventPosition(e, e.currentTarget);
+            let tempBox = e.currentTarget.querySelector('.temp-occlusion-box');
+            if (tempBox) tempBox.remove();
+            
+            const box = createOcclusionElement(startPos, currentPos, true);
+            e.currentTarget.appendChild(box);
+        }
+
+        function endDrawing(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            const tempBox = document.querySelector('.temp-occlusion-box');
+            if (tempBox) tempBox.remove();
+            
+            const touch = e.changedTouches?.[0] || e;
+            const endPos = getEventPosition(touch, e.currentTarget);
+            
+            if (Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y) > 10) {
+                createOcclusion(startPos, endPos);
+            }
+        }
+
+        function createOcclusion(start, end) {
+            const imageWrapper = document.getElementById('imageWrapper');
+            const imageRect = currentImageElement.getBoundingClientRect();
+            const wrapperRect = imageWrapper.getBoundingClientRect();
+            
+            // Calculate relative positions to the actual image
+            const imgOffsetX = (wrapperRect.width - imageRect.width) / 2;
+            const imgOffsetY = (wrapperRect.height - imageRect.height) / 2;
+            
+            const occlusion = {
+                id: Date.now(),
+                left: Math.min(start.x, end.x),
+                top: Math.min(start.y, end.y),
+                width: Math.abs(end.x - start.x),
+                height: Math.abs(end.y - start.y),
+                // Store relative to image dimensions for scaling
+                relativeLeft: (Math.min(start.x, end.x) - imgOffsetX) / imageRect.width,
+                relativeTop: (Math.min(start.y, end.y) - imgOffsetY) / imageRect.height,
+                relativeWidth: Math.abs(end.x - start.x) / imageRect.width,
+                relativeHeight: Math.abs(end.y - start.y) / imageRect.height
+            };
+            
+            occlusions.push(occlusion);
+            
+            const box = createOcclusionElement(start, end, false, occlusion.id);
+            imageWrapper.appendChild(box);
+            
+            updateOcclusionNumbers();
+            generateCode();
+        }
+
+        function removeOcclusion(occlusionId) {
+            occlusions = occlusions.filter(o => o.id !== occlusionId);
+            document.querySelector(`[data-occlusion-id="${occlusionId}"]`).remove();
+            updateOcclusionNumbers();
+            generateCode();
+        }
+
+        function createOcclusionElement(start, end, isTemp, occlusionId = null) {
+            const box = document.createElement('div');
+            box.className = isTemp ? 'occlusion-box temp-occlusion-box' : 'occlusion-box';
+            
+            box.style.left = `${Math.min(start.x, end.x)}px`;
+            box.style.top = `${Math.min(start.y, end.y)}px`;
+            box.style.width = `${Math.abs(end.x - start.x)}px`;
+            box.style.height = `${Math.abs(end.y - start.y)}px`;
+            
+            if (!isTemp && occlusionId) {
+                box.dataset.occlusionId = occlusionId;
+                box.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeOcclusion(occlusionId);
+                });
+            }
+            
+            return box;
+        }
+
+        function updateOcclusionNumbers() {
+            occlusions.forEach((occ, index) => {
+                const box = document.querySelector(`[data-occlusion-id="${occ.id}"]`);
+                if (box) {
+                    box.innerHTML = `#${index + 1}`;
+                }
+            });
+        }
+
+        function clearOcclusions() {
+            occlusions = [];
+            document.querySelectorAll('.occlusion-box:not(.temp-occlusion-box)').forEach(box => box.remove());
+            generateCode();
+        }
+
+        function generateCode() {
+            const codeOutput = document.getElementById('codeOutput');
+            const copyBtn = document.getElementById('copyBtn');
+            const inlineCopyBtn = document.getElementById('inlineCopyBtn');
+            
+            if (occlusions.length === 0) {
+                codeOutput.textContent = 'No occlusions created yet...';
+                if (copyBtn) copyBtn.disabled = true;
+                if (inlineCopyBtn) inlineCopyBtn.classList.add('hidden');
+                return;
+            }
+            
+            const codeData = {
+                occlusions: occlusions.map((occ, index) => ({
+                    id: index + 1,
+                    left: occ.relativeLeft,
+                    top: occ.relativeTop,
+                    width: occ.relativeWidth,
+                    height: occ.relativeHeight
+                }))
+            };
+            
+            codeOutput.textContent = JSON.stringify(codeData, null, 2);
+            if (copyBtn) copyBtn.disabled = false;
+            if (inlineCopyBtn) inlineCopyBtn.classList.remove('hidden');
+        }
+
+        function copyToClipboard() {
+            const codeOutput = document.getElementById('codeOutput');
+            navigator.clipboard.writeText(codeOutput.textContent).then(() => {
+                const btn = document.getElementById('copyBtn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#28a745';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            });
+        }
+
+        function copyCodeInline() {
+            const codeOutput = document.getElementById('codeOutput');
+            navigator.clipboard.writeText(codeOutput.textContent).then(() => {
+                const btn = document.getElementById('inlineCopyBtn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            if (isTouchDevice()) {
+                isDrawModeActive = false;
+            } else {
+                isDrawModeActive = true;
+                const drawModeToggle = document.getElementById('drawModeToggle');
+                if (drawModeToggle) {
+                    drawModeToggle.classList.add('active');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

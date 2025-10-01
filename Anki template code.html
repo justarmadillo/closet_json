@@ -1,0 +1,231 @@
+<script>
+// ======================================================================
+// --- ANKI OCCLUSION SCRIPT WITH RESET BUTTON ---
+// ======================================================================
+
+// Utility function to reset the entire occlusion state
+function resetOcclusions() {
+    window.occlusionsInitialized = false;
+    const existingContainers = document.querySelectorAll('[data-occlusion-container]');
+
+    existingContainers.forEach(container => {
+        const originalImg = container.querySelector('img[data-original-image]');
+        if (originalImg && container.parentNode) {
+            // Restore the original image and clean up
+            const cleanImg = originalImg.cloneNode(true);
+            cleanImg.removeAttribute('data-original-image');
+            container.parentNode.replaceChild(cleanImg, container);
+        }
+    });
+}
+
+// 1. Initial Reset: Clean up any state from a previous card flip
+resetOcclusions();
+
+// 2. Guard Clause: Prevent the script from running multiple times on the same card view
+if (typeof window.occlusionsInitialized === 'undefined') {
+    window.occlusionsInitialized = false;
+}
+
+function initOcclusions() {
+    // If we've already run this for the current card, stop.
+    if (window.occlusionsInitialized) {
+        return;
+    }
+    window.occlusionsInitialized = true;
+
+    // --- Element Setup ---
+    const contextDiv = document.getElementById('context');
+    const contextCodeDiv = document.getElementById('context_code');
+
+    if (!contextDiv || !contextCodeDiv) {
+        console.error('[Occlusion] Required divs (#context, #context_code) not found.');
+        return;
+    }
+
+    const img = contextDiv.querySelector('img');
+    if (!img) {
+        console.error('[Occlusion] No image found in #context.');
+        return;
+    }
+    // Mark the original image so we can restore it later
+    img.setAttribute('data-original-image', 'true');
+
+
+    // --- Data Parsing ---
+    let occlusionData;
+    try {
+        occlusionData = JSON.parse(contextCodeDiv.textContent.trim());
+    } catch (e) {
+        console.error('[Occlusion] Failed to parse JSON data:', e);
+        return;
+    }
+
+    if (!occlusionData?.occlusions?.length) {
+        console.error('[Occlusion] No occlusion data found in JSON.');
+        return;
+    }
+
+    // --- State Tracking ---
+    let totalOcclusions = occlusionData.occlusions.length;
+    let revealedCount = 0;
+
+    // --- Container & Image Setup ---
+    const container = document.createElement('div');
+    container.setAttribute('data-occlusion-container', 'true');
+    container.style.cssText = `
+        position: relative;
+        display: inline-block;
+        max-width: 100%;
+        line-height: 0; /* Prevents extra space below the image */
+    `;
+
+    const interactiveImg = img.cloneNode(true);
+    interactiveImg.style.cssText = `
+        max-width: 100%;
+        height: auto;
+        display: block;
+    `;
+    container.appendChild(interactiveImg);
+
+    // --- Reset Button ---
+    const resetButton = document.createElement('button');
+    resetButton.textContent = 'Reset Occlusions';
+    resetButton.style.cssText = `
+        display: none; /* Initially hidden */
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 20;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    `;
+    container.appendChild(resetButton);
+
+
+    // --- Core Functions ---
+
+    // Checks if all occlusions are revealed and shows/hides the reset button
+    function checkCompletion() {
+        if (revealedCount >= totalOcclusions) {
+            console.log('[Occlusion] All revealed. Showing reset button.');
+            resetButton.style.display = 'block';
+        } else {
+            resetButton.style.display = 'none';
+        }
+    }
+
+    // Resets the state for the current card view
+    function resetCardState() {
+        console.log('[Occlusion] Resetting card state.');
+        revealedCount = 0;
+        const boxes = container.querySelectorAll('[data-occlusion-box]');
+        boxes.forEach(box => {
+            box.style.display = 'flex'; // Use flex to re-center the text
+        });
+        checkCompletion(); // This will hide the button
+    }
+
+    resetButton.addEventListener('click', resetCardState);
+
+
+    // Main function to create the occlusion boxes over the image
+    function createOcclusions() {
+        // Use a small delay to ensure the image has been rendered and has a size
+        setTimeout(() => {
+            const displayedWidth = interactiveImg.offsetWidth;
+            const displayedHeight = interactiveImg.offsetHeight;
+
+            if (displayedWidth === 0 || displayedHeight === 0) {
+                console.error('[Occlusion] Image has no dimensions. Cannot create occlusions.');
+                return;
+            }
+
+            occlusionData.occlusions.forEach((occ) => {
+                const box = document.createElement('div');
+                box.setAttribute('data-occlusion-box', 'true');
+                box.style.cssText = `
+                    position: absolute;
+                    background: rgb(0 0 0); /* Opaque black background */
+                    border: 2px solid #fff;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border-radius: 4px;
+                    transition: background-color 0.2s ease;
+                    left: ${occ.left * displayedWidth}px;
+                    top: ${occ.top * displayedHeight}px;
+                    width: ${occ.width * displayedWidth}px;
+                    height: ${occ.height * displayedHeight}px;
+                    z-index: 10;
+                    box-sizing: border-box;
+                `;
+
+                box.textContent = `#${occ.id}`;
+
+                box.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Only increment if the box was actually visible
+                    if (this.style.display !== 'none') {
+                        this.style.display = 'none';
+                        revealedCount++;
+                        checkCompletion();
+                    }
+                });
+                
+                // Optional: Add hover effect
+                box.addEventListener('mouseenter', function() { this.style.backgroundColor = '#333'; });
+                box.addEventListener('mouseleave', function() { this.style.backgroundColor = 'rgb(0 0 0)'; });
+
+                container.appendChild(box);
+            });
+            console.log(`[Occlusion] ${totalOcclusions} boxes created.`);
+        }, 150); // A small delay is often necessary for rendering
+    }
+
+    // --- Initialization Trigger ---
+    if (interactiveImg.complete && interactiveImg.naturalWidth > 0) {
+        createOcclusions();
+    } else {
+        interactiveImg.onload = createOcclusions;
+    }
+
+    // Finally, replace the original image with our interactive container
+    img.parentNode.replaceChild(container, img);
+}
+
+
+// --- Multiple Triggers to ensure robust initialization in Anki's webview ---
+// These help catch the right moment to run the script.
+document.addEventListener('DOMContentLoaded', initOcclusions);
+window.addEventListener('load', initOcclusions);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    setTimeout(initOcclusions, 50);
+}
+setTimeout(initOcclusions, 250);
+</script>
+
+<style>
+/* Hide the JSON data block */
+#context_code {
+    display: none !important;
+}
+
+/* Ensure images scale correctly within the context area */
+#context img {
+    max-width: 100%;
+    height: auto;
+}
+</style>

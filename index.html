@@ -103,6 +103,7 @@
             border-radius: 8px;
             padding: 20px;
             margin-top: 20px;
+            position: relative;
         }
         
         .code-output {
@@ -121,6 +122,9 @@
         }
         
         .copy-button {
+            position: absolute;
+            top: 28px;
+            right: 28px;
             background: var(--primary-color);
             color: white;
             border: none;
@@ -129,7 +133,7 @@
             cursor: pointer;
             font-size: 12px;
             transition: all 0.2s ease;
-            margin-top: 10px;
+            z-index: 10;
         }
         .copy-button:hover { filter: brightness(1.1); }
         .copy-button.copied { background: #28a745; }
@@ -172,7 +176,6 @@
         <div class="controls">
             <button class="btn" onclick="document.getElementById('fileInput').click()">Upload Image</button>
             <button class="btn secondary" onclick="clearOcclusions()">Clear All</button>
-            <button class="btn success" onclick="copyToClipboard()" id="copyBtn" disabled>Copy Code</button>
         </div>
 
         <div class="upload-area" onclick="document.getElementById('fileInput').click()" 
@@ -188,8 +191,8 @@
 
         <div class="output-area">
             <h3>Occlusion Data (Copy this to your context_code field):</h3>
-            <div class="code-output" id="codeOutput">No occlusions created yet...</div>
             <button class="copy-button hidden" id="inlineCopyBtn" onclick="copyCodeInline()">Copy</button>
+            <div class="code-output" id="codeOutput">No occlusions created yet...</div>
         </div>
     </div>
 
@@ -207,244 +210,34 @@
         let startPos = { x: 0, y: 0 };
         let occlusions = [];
         let currentImageElement = null;
+        let currentCodeString = "";
 
-        function isTouchDevice() {
-            return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-        }
-
-        function toggleDrawMode() {
-            isDrawModeActive = !isDrawModeActive;
-            const button = document.getElementById('drawModeToggle');
-            if (button) {
-                button.classList.toggle('active', isDrawModeActive);
-            }
-            const imageWrapper = document.getElementById('imageWrapper');
-            if (imageWrapper) {
-                imageWrapper.classList.toggle('draw-active', isDrawModeActive);
-            }
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.currentTarget.classList.add('dragover');
-        }
-
-        function handleDragLeave(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('dragover');
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                loadImage(file);
-            }
-        }
-
-        function handleImageUpload(e) {
-            const file = e.target.files[0];
-            if (file && file.type.startsWith('image/')) {
-                loadImage(file);
-            }
-        }
-
-        function loadImage(file) {
-            const reader = new FileReader();
-            reader.onload = e => displayImage(e.target.result);
-            reader.readAsDataURL(file);
-        }
-
-        function displayImage(src) {
-            const container = document.getElementById('imageContainerWrapper');
-            container.innerHTML = `<div class="image-container" id="imageWrapper"><img src="${src}" alt="Curriculum" class="curriculum-image" id="curriculumImg"></div>`;
-            
-            currentImageElement = document.getElementById('curriculumImg');
-            const imageWrapper = document.getElementById('imageWrapper');
-            
-            setupDrawingListeners(imageWrapper);
-            document.getElementById('uploadText').innerHTML = '<p>✓ Image loaded. Draw occlusions by clicking and dragging.</p>';
-            document.getElementById('fabContainer').classList.remove('hidden');
-            
-            // Auto-enable draw mode
-            isDrawModeActive = true;
-            document.getElementById('drawModeToggle').classList.add('active');
-            imageWrapper.classList.add('draw-active');
-            
-            clearOcclusions();
-        }
-
-        function getEventPosition(event, target) {
-            const rect = target.getBoundingClientRect();
-            const touch = event.touches?.[0] || event;
-            return {
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
-            };
-        }
-
-        function setupDrawingListeners(wrapper) {
-            wrapper.addEventListener('mousedown', startDrawing);
-            wrapper.addEventListener('mousemove', drawOcclusion);
-            wrapper.addEventListener('mouseup', endDrawing);
-            wrapper.addEventListener('mouseleave', endDrawing);
-            wrapper.addEventListener('touchstart', startDrawing, { passive: false });
-            wrapper.addEventListener('touchmove', drawOcclusion, { passive: false });
-            wrapper.addEventListener('touchend', endDrawing);
-        }
+        function isTouchDevice() { return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0); }
+        function toggleDrawMode() { isDrawModeActive = !isDrawModeActive; document.getElementById('drawModeToggle').classList.toggle('active', isDrawModeActive); const imageWrapper = document.getElementById('imageWrapper'); if (imageWrapper) { imageWrapper.classList.toggle('draw-active', isDrawModeActive); } }
+        function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+        function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('dragover'); }
+        function handleDrop(e) { e.preventDefault(); e.currentTarget.classList.remove('dragover'); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('image/')) { loadImage(file); } }
+        function handleImageUpload(e) { const file = e.target.files[0]; if (file && file.type.startsWith('image/')) { loadImage(file); } }
+        function loadImage(file) { const reader = new FileReader(); reader.onload = e => displayImage(e.target.result); reader.readAsDataURL(file); }
+        function displayImage(src) { const container = document.getElementById('imageContainerWrapper'); container.innerHTML = `<div class="image-container" id="imageWrapper"><img src="${src}" alt="Curriculum" class="curriculum-image" id="curriculumImg"></div>`; currentImageElement = document.getElementById('curriculumImg'); const imageWrapper = document.getElementById('imageWrapper'); setupDrawingListeners(imageWrapper); document.getElementById('uploadText').innerHTML = '<p>✓ Image loaded. Draw occlusions by clicking and dragging.</p>'; document.getElementById('fabContainer').classList.remove('hidden'); isDrawModeActive = true; document.getElementById('drawModeToggle').classList.add('active'); imageWrapper.classList.add('draw-active'); clearOcclusions(); }
+        function getEventPosition(event, target) { const rect = target.getBoundingClientRect(); const touch = event.touches?.[0] || event; return { x: touch.clientX - rect.left, y: touch.clientY - rect.top }; }
+        function setupDrawingListeners(wrapper) { wrapper.addEventListener('mousedown', startDrawing); wrapper.addEventListener('mousemove', drawOcclusion); wrapper.addEventListener('mouseup', endDrawing); wrapper.addEventListener('mouseleave', endDrawing); wrapper.addEventListener('touchstart', startDrawing, { passive: false }); wrapper.addEventListener('touchmove', drawOcclusion, { passive: false }); wrapper.addEventListener('touchend', endDrawing); }
+        function startDrawing(e) { if (!isDrawModeActive) return; e.preventDefault(); isDrawing = true; startPos = getEventPosition(e, e.currentTarget); }
+        function drawOcclusion(e) { if (!isDrawing) return; e.preventDefault(); const currentPos = getEventPosition(e, e.currentTarget); let tempBox = e.currentTarget.querySelector('.temp-occlusion-box'); if (tempBox) tempBox.remove(); const box = createOcclusionElement(startPos, currentPos, true); e.currentTarget.appendChild(box); }
+        function endDrawing(e) { if (!isDrawing) return; isDrawing = false; const tempBox = document.querySelector('.temp-occlusion-box'); if (tempBox) tempBox.remove(); const touch = e.changedTouches?.[0] || e; const endPos = getEventPosition(touch, e.currentTarget); if (Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y) > 10) { createOcclusion(startPos, endPos); } }
+        function createOcclusion(start, end) { const imageWrapper = document.getElementById('imageWrapper'); const imageRect = currentImageElement.getBoundingClientRect(); const wrapperRect = imageWrapper.getBoundingClientRect(); const imgOffsetX = (wrapperRect.width - imageRect.width) / 2; const imgOffsetY = (wrapperRect.height - imageRect.height) / 2; const occlusion = { id: Date.now(), left: Math.min(start.x, end.x), top: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y), relativeLeft: (Math.min(start.x, end.x) - imgOffsetX) / imageRect.width, relativeTop: (Math.min(start.y, end.y) - imgOffsetY) / imageRect.height, relativeWidth: Math.abs(end.x - start.x) / imageRect.width, relativeHeight: Math.abs(end.y - start.y) / imageRect.height }; occlusions.push(occlusion); const box = createOcclusionElement(start, end, false, occlusion.id); imageWrapper.appendChild(box); updateOcclusionNumbers(); generateCode(); }
+        function removeOcclusion(occlusionId) { occlusions = occlusions.filter(o => o.id !== occlusionId); document.querySelector(`[data-occlusion-id="${occlusionId}"]`).remove(); updateOcclusionNumbers(); generateCode(); }
+        function createOcclusionElement(start, end, isTemp, occlusionId = null) { const box = document.createElement('div'); box.className = isTemp ? 'occlusion-box temp-occlusion-box' : 'occlusion-box'; box.style.left = `${Math.min(start.x, end.x)}px`; box.style.top = `${Math.min(start.y, end.y)}px`; box.style.width = `${Math.abs(end.x - start.x)}px`; box.style.height = `${Math.abs(end.y - start.y)}px`; if (!isTemp && occlusionId) { box.dataset.occlusionId = occlusionId; box.addEventListener('click', (e) => { e.stopPropagation(); removeOcclusion(occlusionId); }); } return box; }
+        function updateOcclusionNumbers() { occlusions.forEach((occ, index) => { const box = document.querySelector(`[data-occlusion-id="${occ.id}"]`); if (box) { box.innerHTML = `#${index + 1}`; } }); }
+        function clearOcclusions() { occlusions = []; document.querySelectorAll('.occlusion-box:not(.temp-occlusion-box)').forEach(box => box.remove()); generateCode(); }
+        function generateCode() { const codeOutput = document.getElementById('codeOutput'); const inlineCopyBtn = document.getElementById('inlineCopyBtn'); if (occlusions.length === 0) { currentCodeString = ""; codeOutput.textContent = 'No occlusions created yet...'; if (inlineCopyBtn) inlineCopyBtn.classList.add('hidden'); return; } const codeData = { occlusions: occlusions.map((occ, index) => ({ id: index + 1, left: occ.relativeLeft, top: occ.relativeTop, width: occ.relativeWidth, height: occ.relativeHeight })) }; currentCodeString = JSON.stringify(codeData); codeOutput.textContent = JSON.stringify(codeData, null, 2); if (inlineCopyBtn) inlineCopyBtn.classList.remove('hidden'); }
         
-        function startDrawing(e) {
-            if (!isDrawModeActive) return;
-            e.preventDefault();
-            isDrawing = true;
-            startPos = getEventPosition(e, e.currentTarget);
-        }
-        
-        function drawOcclusion(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-            
-            const currentPos = getEventPosition(e, e.currentTarget);
-            let tempBox = e.currentTarget.querySelector('.temp-occlusion-box');
-            if (tempBox) tempBox.remove();
-            
-            const box = createOcclusionElement(startPos, currentPos, true);
-            e.currentTarget.appendChild(box);
-        }
+        async function copyCodeInline() {
+            if (!currentCodeString) return;
 
-        function endDrawing(e) {
-            if (!isDrawing) return;
-            isDrawing = false;
-            
-            const tempBox = document.querySelector('.temp-occlusion-box');
-            if (tempBox) tempBox.remove();
-            
-            const touch = e.changedTouches?.[0] || e;
-            const endPos = getEventPosition(touch, e.currentTarget);
-            
-            if (Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y) > 10) {
-                createOcclusion(startPos, endPos);
-            }
-        }
-
-        function createOcclusion(start, end) {
-            const imageWrapper = document.getElementById('imageWrapper');
-            const imageRect = currentImageElement.getBoundingClientRect();
-            const wrapperRect = imageWrapper.getBoundingClientRect();
-            
-            // Calculate relative positions to the actual image
-            const imgOffsetX = (wrapperRect.width - imageRect.width) / 2;
-            const imgOffsetY = (wrapperRect.height - imageRect.height) / 2;
-            
-            const occlusion = {
-                id: Date.now(),
-                left: Math.min(start.x, end.x),
-                top: Math.min(start.y, end.y),
-                width: Math.abs(end.x - start.x),
-                height: Math.abs(end.y - start.y),
-                // Store relative to image dimensions for scaling
-                relativeLeft: (Math.min(start.x, end.x) - imgOffsetX) / imageRect.width,
-                relativeTop: (Math.min(start.y, end.y) - imgOffsetY) / imageRect.height,
-                relativeWidth: Math.abs(end.x - start.x) / imageRect.width,
-                relativeHeight: Math.abs(end.y - start.y) / imageRect.height
-            };
-            
-            occlusions.push(occlusion);
-            
-            const box = createOcclusionElement(start, end, false, occlusion.id);
-            imageWrapper.appendChild(box);
-            
-            updateOcclusionNumbers();
-            generateCode();
-        }
-
-        function removeOcclusion(occlusionId) {
-            occlusions = occlusions.filter(o => o.id !== occlusionId);
-            document.querySelector(`[data-occlusion-id="${occlusionId}"]`).remove();
-            updateOcclusionNumbers();
-            generateCode();
-        }
-
-        function createOcclusionElement(start, end, isTemp, occlusionId = null) {
-            const box = document.createElement('div');
-            box.className = isTemp ? 'occlusion-box temp-occlusion-box' : 'occlusion-box';
-            
-            box.style.left = `${Math.min(start.x, end.x)}px`;
-            box.style.top = `${Math.min(start.y, end.y)}px`;
-            box.style.width = `${Math.abs(end.x - start.x)}px`;
-            box.style.height = `${Math.abs(end.y - start.y)}px`;
-            
-            if (!isTemp && occlusionId) {
-                box.dataset.occlusionId = occlusionId;
-                box.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    removeOcclusion(occlusionId);
-                });
-            }
-            
-            return box;
-        }
-
-        function updateOcclusionNumbers() {
-            occlusions.forEach((occ, index) => {
-                const box = document.querySelector(`[data-occlusion-id="${occ.id}"]`);
-                if (box) {
-                    box.innerHTML = `#${index + 1}`;
-                }
-            });
-        }
-
-        function clearOcclusions() {
-            occlusions = [];
-            document.querySelectorAll('.occlusion-box:not(.temp-occlusion-box)').forEach(box => box.remove());
-            generateCode();
-        }
-
-        function generateCode() {
-            const codeOutput = document.getElementById('codeOutput');
-            const copyBtn = document.getElementById('copyBtn');
-            const inlineCopyBtn = document.getElementById('inlineCopyBtn');
-            
-            if (occlusions.length === 0) {
-                codeOutput.textContent = 'No occlusions created yet...';
-                if (copyBtn) copyBtn.disabled = true;
-                if (inlineCopyBtn) inlineCopyBtn.classList.add('hidden');
-                return;
-            }
-            
-            const codeData = {
-                occlusions: occlusions.map((occ, index) => ({
-                    id: index + 1,
-                    left: occ.relativeLeft,
-                    top: occ.relativeTop,
-                    width: occ.relativeWidth,
-                    height: occ.relativeHeight
-                }))
-            };
-            
-            codeOutput.textContent = JSON.stringify(codeData, null, 2);
-            if (copyBtn) copyBtn.disabled = false;
-            if (inlineCopyBtn) inlineCopyBtn.classList.remove('hidden');
-        }
-
-        function copyToClipboard() {
-            const codeOutput = document.getElementById('codeOutput');
-            navigator.clipboard.writeText(codeOutput.textContent).then(() => {
-                const btn = document.getElementById('copyBtn');
-                const originalText = btn.textContent;
-                btn.textContent = 'Copied!';
-                btn.style.background = '#28a745';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                    btn.style.background = '';
-                }, 2000);
-            });
-        }
-
-        function copyCodeInline() {
-            const codeOutput = document.getElementById('codeOutput');
-            navigator.clipboard.writeText(codeOutput.textContent).then(() => {
+            try {
+                await navigator.clipboard.writeText(currentCodeString);
+                
                 const btn = document.getElementById('inlineCopyBtn');
                 const originalText = btn.textContent;
                 btn.textContent = 'Copied!';
@@ -453,10 +246,30 @@
                     btn.textContent = originalText;
                     btn.classList.remove('copied');
                 }, 2000);
-            });
+            } catch (err) {
+                const textArea = document.createElement('textarea');
+                textArea.value = currentCodeString;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-9999px';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const btn = document.getElementById('inlineCopyBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.classList.remove('copied');
+                    }, 2000);
+                } catch (fallbackErr) {
+                    alert('Copy failed');
+                }
+                document.body.removeChild(textArea);
+            }
         }
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             if (isTouchDevice()) {
                 isDrawModeActive = false;
